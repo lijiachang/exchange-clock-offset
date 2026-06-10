@@ -10,6 +10,20 @@ CSV/JSON).
 
 `offset_ms > 0` means the exchange clock is **ahead** of the local clock.
 
+## Install (prebuilt binary, no Rust needed)
+
+Static musl binaries — download, extract, run. Works on any Ubuntu/Debian/Alpine/CentOS.
+
+```bash
+# x86_64 (most Intel/AMD cloud servers):
+curl -L https://github.com/lijiachang/exchange-clock-offset/releases/latest/download/exchange-clock-offset-x86_64-unknown-linux-musl.tar.gz | tar xz
+./exchange-clock-offset
+
+# ARM servers (AWS Graviton, etc.):
+curl -L https://github.com/lijiachang/exchange-clock-offset/releases/latest/download/exchange-clock-offset-aarch64-unknown-linux-musl.tar.gz | tar xz
+./exchange-clock-offset
+```
+
 ## How it works
 
 For each endpoint it sends `--warmup` throwaway requests (to establish
@@ -80,4 +94,8 @@ cargo build --release
   `unreachable` and do not abort the run. Some networks cannot reach OKX
   (`www.okx.com`); use `--host-override okx=https://aws.okx.com/api/v5/public/time`
   or run from an unblocked network/colo.
+- **Rate limiting** can produce a `partial` status (e.g. OKX often returns
+  `{"code":"50011","msg":"Requests too frequent"}` after a few rapid probes).
+  Slow down with a larger gap and/or fewer probes:
+  `--probe-gap-ms 500` (default 150), optionally `--warmup 1 --probes 5`.
 - This is a snapshot — no periodic refresh, so no long-run drift handling.

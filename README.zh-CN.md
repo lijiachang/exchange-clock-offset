@@ -9,6 +9,22 @@
 
 `offset_ms > 0` 表示交易所时钟**比本机快**。
 
+## 安装（预编译二进制，无需 Rust）
+
+静态 musl 二进制——下载、解压、运行即可，适用于任意 Ubuntu/Debian/Alpine/CentOS。
+
+```bash
+# x86_64（绝大多数 Intel/AMD 云服务器）：
+curl -L https://github.com/lijiachang/exchange-clock-offset/releases/latest/download/exchange-clock-offset-x86_64-unknown-linux-musl.tar.gz | tar xz
+./exchange-clock-offset
+
+# ARM 服务器（AWS Graviton 等）：
+curl -L https://github.com/lijiachang/exchange-clock-offset/releases/latest/download/exchange-clock-offset-aarch64-unknown-linux-musl.tar.gz | tar xz
+./exchange-clock-offset
+```
+
+> 用 `releases/latest/download/...` 始终拉最新版本；要固定版本就把 `latest/download` 换成 `download/v0.1.0`。
+
 ## 工作原理
 
 对每个端点，先发送 `--warmup` 次"丢弃结果"的请求（用于建立 TCP+TLS、预热 keep-alive
@@ -77,6 +93,9 @@ cargo build --release
 - 探测失败的端点（DNS 拦截、地域限制、超时）会标记为 `unreachable`，**不会中断整个运行**。
   某些网络无法访问 OKX（`www.okx.com`），可用
   `--host-override okx=https://aws.okx.com/api/v5/public/time` 或换到未被限制的网络/colo 运行。
+- **限频**会导致 `partial` 状态（例如 OKX 在连续快速探测几次后常返回
+  `{"code":"50011","msg":"Requests too frequent"}`）。放慢节奏即可：
+  调大间隔 `--probe-gap-ms 500`（默认 150），必要时再减少次数 `--warmup 1 --probes 5`。
 - 这是一次性快照——不做周期刷新，因此不涉及长跑时钟漂移问题。
 - RTT 偏高（如 100ms+）通常说明本机离交易所服务器较远；放到交易服务器/colo 上运行时
   RTT 会降到个位数毫秒，偏移精度更高。
