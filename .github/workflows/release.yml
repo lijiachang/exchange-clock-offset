@@ -1,0 +1,38 @@
+name: release
+
+# Build static Linux binaries and attach them to a GitHub Release whenever a
+# version tag (vX.Y.Z) is pushed.
+on:
+  push:
+    tags:
+      - "v*"
+  # Allow manual runs from the Actions tab for testing (uploads to the tag's
+  # release only if a matching release/tag exists).
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - x86_64-unknown-linux-musl   # Ubuntu / most x86 cloud servers
+          - aarch64-unknown-linux-musl  # ARM servers (AWS Graviton, etc.)
+    steps:
+      - uses: actions/checkout@v4
+
+      # Builds a fully static musl binary (rustls means no OpenSSL C deps),
+      # packages it as <bin>-<target>.tar.gz, and uploads it to the Release
+      # for the pushed tag (creating the Release if it does not exist yet).
+      - name: Build and upload
+        uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          bin: exchange-clock-offset
+          target: ${{ matrix.target }}
+          archive: $bin-$target
+          include: README.md,README.zh-CN.md
+          token: ${{ secrets.GITHUB_TOKEN }}
