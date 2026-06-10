@@ -86,6 +86,26 @@ cargo build --release
 | kucoin | `api.kucoin.com/api/v1/timestamp` | `api-futures.kucoin.com/api/v1/timestamp` | 现货/合约不同域名 |
 | mexc | `api.mexc.com/api/v3/time` | `contract.mexc.com/api/v1/contract/ping` | 现货/合约不同域名 |
 
+「共用」表示该所现货和合约只有一个服务器时间端点——例如 Gate 的合约主机没有 time
+端点，所以 usdm 复用了 spot 的 URL。因此现货和合约读的是**同一个后端时钟**。
+
+### 各交易所 serverTime 精度
+
+各所时间字段的精度，决定了偏移能被测到多细：
+
+| 交易所 | 字段 | 精度 |
+|---|---|---|
+| binance（现货 & 合约） | `serverTime` | 毫秒 |
+| okx | `data[0].ts` | 毫秒 |
+| bybit | `result.timeNano` | **纳秒** |
+| bitget | `data.serverTime` | 毫秒 |
+| gate | `server_time` | 毫秒 |
+| kucoin（现货 & 合约） | `data` | 毫秒 |
+| mexc（现货 & 合约） | `serverTime` / `data` | 毫秒 |
+
+只有 Bybit 提供亚毫秒（纳秒）精度。其余所返回的时间都量化到整毫秒，这是偏移精度的
+主要限制因素。
+
 ## 说明 / 限制
 
 - REST `/time` 的精度受限于毫秒量化 + RTT 不完全对称，预期精度约 **±1–5 ms**。
@@ -96,6 +116,11 @@ cargo build --release
 - **限频**会导致 `partial` 状态（例如 OKX 在连续快速探测几次后常返回
   `{"code":"50011","msg":"Requests too frequent"}`）。放慢节奏即可：
   调大间隔 `--probe-gap-ms 500`（默认 150），必要时再减少次数 `--warmup 1 --probes 5`。
+- **如何看待「共用」端点的两行。** 当现货和合约指向同一个 URL（OKX、Bybit、Bitget、
+  Gate）时，这两行是对**同一个服务器时钟的两次独立测量**——各自独立的请求批次、独立连接。
+  两行之间的任何差异都是测量噪声（RTT 抖动 + 时间量化），**不代表两个市场的时钟真的不同**；
+  应把两行结果的接近程度当成一次免费的「重复性校验」，而不要把行间的细微差异当作有意义的信号。
+  对任意两行之间的微小差异，同样适用这一点。
 - 这是一次性快照——不做周期刷新，因此不涉及长跑时钟漂移问题。
 - RTT 偏高（如 100ms+）通常说明本机离交易所服务器较远；放到交易服务器/colo 上运行时
   RTT 会降到个位数毫秒，偏移精度更高。

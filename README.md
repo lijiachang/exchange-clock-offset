@@ -86,6 +86,29 @@ cargo build --release
 | kucoin | `api.kucoin.com/api/v1/timestamp` | `api-futures.kucoin.com/api/v1/timestamp` | separate hosts |
 | mexc | `api.mexc.com/api/v3/time` | `contract.mexc.com/api/v1/contract/ping` | separate hosts |
 
+`(shared)` means the exchange exposes a single server-time endpoint for both
+markets — e.g. Gate's futures host has no time endpoint, so usdm reuses the
+spot URL. Spot and futures therefore read the **same backend clock**.
+
+### Server-time resolution
+
+The resolution of each exchange's time field caps how finely the offset can be
+measured:
+
+| Exchange | field | resolution |
+|---|---|---|
+| binance (spot & usdm) | `serverTime` | millisecond |
+| okx | `data[0].ts` | millisecond |
+| bybit | `result.timeNano` | **nanosecond** |
+| bitget | `data.serverTime` | millisecond |
+| gate | `server_time` | millisecond |
+| kucoin (spot & futures) | `data` | millisecond |
+| mexc (spot & usdm) | `serverTime` / `data` | millisecond |
+
+Only Bybit exposes sub-millisecond resolution. For every other exchange the
+reported time is quantised to whole milliseconds, which is the dominant limit
+on offset precision.
+
 ## Notes / limitations
 
 - REST `/time` precision is bounded by ms quantisation + RTT asymmetry, so
@@ -98,4 +121,11 @@ cargo build --release
   `{"code":"50011","msg":"Requests too frequent"}` after a few rapid probes).
   Slow down with a larger gap and/or fewer probes:
   `--probe-gap-ms 500` (default 150), optionally `--warmup 1 --probes 5`.
+- **Interpreting `(shared)` rows.** When spot and usdm point at the same URL
+  (OKX, Bybit, Bitget, Gate), the two rows are *independent* measurements of one
+  server clock — separate request bursts over separate connections. Any
+  difference between them is measurement noise (RTT jitter + time quantisation),
+  not a real clock difference; read their agreement as a free repeatability
+  check rather than treating fine per-row differences as meaningful. The same
+  caution applies to small differences between any two rows.
 - This is a snapshot — no periodic refresh, so no long-run drift handling.
